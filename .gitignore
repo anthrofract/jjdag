@@ -1,0 +1,10 @@
+# Ignore everything by default
+*
+
+!.gitignore
+!Cargo.lock
+!Cargo.toml
+!README.md
+!screenshot.png
+!src/
+!src/**
