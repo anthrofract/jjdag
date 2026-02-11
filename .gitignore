@@ -5,6 +5,8 @@
 !Cargo.lock
 !Cargo.toml
 !README.md
+!flake.lock
+!flake.nix
 !screenshot.png
 !src/
 !src/**
