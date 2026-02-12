@@ -162,17 +162,23 @@ impl JjCommand {
     }
 
     pub fn log(revset: &str, global_args: GlobalArgs) -> Self {
-        let args = ["log", "--revisions", revset];
+        let args = [
+            "log",
+            "--template",
+            "builtin_log_compact",
+            "--revisions",
+            revset,
+        ];
         Self::_new(&args, global_args, None, ReturnOutput::Stdout)
     }
 
     pub fn diff_summary(change_id: &str, global_args: GlobalArgs) -> Self {
-        let args = ["diff", "--revisions", change_id, "--summary"];
+        let args = ["diff", "--summary", "--revisions", change_id];
         Self::_new(&args, global_args, None, ReturnOutput::Stdout)
     }
 
     pub fn diff_file(change_id: &str, file: &str, global_args: GlobalArgs) -> Self {
-        let args = ["diff", "--revisions", change_id, file];
+        let args = ["diff", "--color-words", "--revisions", change_id, file];
         Self::_new(&args, global_args, None, ReturnOutput::Stdout)
     }
 
