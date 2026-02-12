@@ -1,6 +1,6 @@
 use crate::{
     command_tree::{CommandTree, display_unbound_error_lines},
-    log_tree::{DIFF_HUNK_LINE_IDX, JjLog, TreePosition, get_parent_tree_position},
+    log_tree::{DIFF_HUNK_LINE_IDX, JjLog, LogTreeNode, TreePosition, get_parent_tree_position},
     shell_out::{JjCommand, JjCommandError, get_input_from_editor},
     terminal::Term,
     update::{
@@ -48,7 +48,7 @@ pub struct Model {
     accumulated_command_output: Vec<Line<'static>>,
     saved_change_id: Option<String>,
     saved_file_path: Option<String>,
-    pub saved_log_index: Option<usize>,
+    saved_tree_position: Option<TreePosition>,
     jj_log: JjLog,
     pub log_list: Vec<Text<'static>>,
     pub log_list_state: ListState,
@@ -72,7 +72,7 @@ impl Model {
             command_keys: Vec::new(),
             queued_jj_commands: Vec::new(),
             accumulated_command_output: Vec::new(),
-            saved_log_index: None,
+            saved_tree_position: None,
             saved_change_id: None,
             saved_file_path: None,
             jj_log: JjLog::new()?,
@@ -184,6 +184,23 @@ impl Model {
             None => None,
             Some(file_diff) => Some(&file_diff.path),
         }
+    }
+
+    pub fn get_saved_selection_flat_log_idxs(&self) -> (Option<usize>, Option<usize>) {
+        let Some(saved_tree_position) = self.saved_tree_position.as_ref() else {
+            return (None, None);
+        };
+
+        let commit_idx = self
+            .jj_log
+            .get_tree_commit(saved_tree_position)
+            .map(|commit| commit.flat_log_idx);
+        let file_diff_idx = self
+            .jj_log
+            .get_tree_file_diff(saved_tree_position)
+            .map(|file_diff| file_diff.flat_log_idx());
+
+        (commit_idx, file_diff_idx)
     }
 
     fn is_selected_working_copy(&self) -> bool {
@@ -304,7 +321,7 @@ impl Model {
 
     pub fn clear(&mut self) {
         self.info_list = None;
-        self.saved_log_index = None;
+        self.saved_tree_position = None;
         self.saved_change_id = None;
         self.saved_file_path = None;
         self.command_keys.clear();
@@ -493,7 +510,8 @@ impl Model {
         };
         self.saved_change_id = Some(change_id.to_string());
         self.saved_file_path = self.get_selected_file_path().map(String::from);
-        self.saved_log_index = Some(self.log_selected());
+        self.saved_tree_position = Some(self.get_selected_tree_position());
+
         Ok(())
     }
 

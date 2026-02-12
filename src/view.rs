@@ -1,19 +1,44 @@
-use std::str::FromStr;
-
 use crate::model::Model;
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, Paragraph},
 };
 
-const SELECTION_COLOR: &str = "#282A36";
+pub const SELECTION_COLOR: Color = Color::Rgb(40, 42, 54);
+pub const SAVED_SELECTION_COLOR: Color = Color::Rgb(33, 35, 45);
 
 pub fn view(model: &mut Model, frame: &mut Frame) {
-    // Render header
+    let header = render_header(model);
+    let log_list = render_log_list(model);
+    let layout = render_layout(model, frame.area());
+    frame.render_widget(header, layout[0]);
+    frame.render_stateful_widget(log_list, layout[1], &mut model.log_list_state);
+    model.log_list_layout = layout[1];
+    if let Some(info_list) = render_info_list(model) {
+        frame.render_widget(info_list, layout[2]);
+    }
+}
+
+fn render_layout(model: &Model, area: Rect) -> std::rc::Rc<[Rect]> {
+    Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(0),
+            if let Some(info_list) = &model.info_list {
+                Constraint::Length(info_list.lines.len() as u16 + 2)
+            } else {
+                Constraint::Length(0)
+            },
+        ])
+        .split(area)
+}
+
+fn render_header(model: &Model) -> Paragraph<'_> {
     let mut header_spans = vec![
         Span::styled("repository: ", Style::default().fg(Color::Blue)),
         Span::styled(&model.display_repository, Style::default().fg(Color::Green)),
@@ -27,53 +52,49 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
             Style::default().fg(Color::LightRed),
         ));
     }
-    let header = Paragraph::new(Line::from(header_spans));
+    Paragraph::new(Line::from(header_spans))
+}
 
-    // Render log list
-    let mut log_list = model.log_list.clone();
-    if let Some(saved_log_index) = model.saved_log_index {
-        let bg_color = Color::from_str(SELECTION_COLOR).unwrap();
-        let mut text = log_list[saved_log_index].clone();
-        text.style = text.style.bg(bg_color);
-        for line in &mut text.lines {
-            for span in &mut line.spans {
-                span.style = span.style.bg(bg_color);
-            }
-        }
-        log_list[saved_log_index] = text;
+fn render_log_list(model: &Model) -> List<'static> {
+    let mut log_items = model.log_list.clone();
+    apply_saved_selection_highlights(model, &mut log_items);
+    List::new(log_items)
+        .highlight_style(Style::new().bold().bg(SELECTION_COLOR))
+        .scroll_padding(model.log_list_scroll_padding)
+}
+
+fn apply_saved_selection_highlights(model: &Model, log_items: &mut [ratatui::text::Text<'static>]) {
+    let (saved_commit_idx, saved_file_diff_idx) = model.get_saved_selection_flat_log_idxs();
+
+    if let Some(idx) = saved_commit_idx
+        && let Some(item) = log_items.get_mut(idx)
+    {
+        apply_saved_selection_highlight(item);
     }
-    let log_list = List::new(log_list)
-        .highlight_style(
-            Style::new()
-                .bold()
-                .bg(Color::from_str(SELECTION_COLOR).unwrap()),
-        )
-        .scroll_padding(model.log_list_scroll_padding);
 
-    // Render layout
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(2),
-            Constraint::Min(0),
-            if let Some(info_list) = &model.info_list {
-                Constraint::Length(info_list.lines.len() as u16 + 2)
-            } else {
-                Constraint::Length(0)
-            },
-        ])
-        .split(frame.area());
-    frame.render_widget(header, layout[0]);
-    frame.render_stateful_widget(log_list, layout[1], &mut model.log_list_state);
-    model.log_list_layout = layout[1];
+    if let Some(idx) = saved_file_diff_idx
+        && let Some(item) = log_items.get_mut(idx)
+    {
+        apply_saved_selection_highlight(item);
+    }
+}
 
-    // Render info list
-    if let Some(info_list) = &model.info_list {
-        let info_list = List::new(info_list.clone()).block(
+fn apply_saved_selection_highlight(text: &mut ratatui::text::Text<'static>) {
+    text.style = text.style.bg(SAVED_SELECTION_COLOR);
+    for line in &mut text.lines {
+        for span in &mut line.spans {
+            span.style = span.style.bg(SAVED_SELECTION_COLOR);
+        }
+    }
+}
+
+fn render_info_list(model: &Model) -> Option<List<'static>> {
+    let info_list = model.info_list.as_ref()?;
+    Some(
+        List::new(info_list.clone()).block(
             Block::default()
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(Color::Blue)),
-        );
-        frame.render_widget(info_list, layout[2]);
-    }
+        ),
+    )
 }
