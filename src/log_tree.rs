@@ -231,9 +231,9 @@ impl Commit {
     fn new(pretty_string: String) -> Result<Self> {
         let clean_string = strip_ansi(&pretty_string);
         let re_fields = Regex::new(
-            r"^([ │]*)(.)([ │]*)  ([k-z]{8,}(?:/\d+)?)\s+.*\s+([a-f0-9]{8,})\s*(\S*)\s*\n([ │├─╯╮]*)(\(empty\))?\s*(.*)",
+            r"^([ │]*)(.)([ │]*)  ([k-z]{8,}(?:/\d+)?)\s+.*\s+([a-f0-9]{8,})\s*(\S*)\s*\n([ │├┤┬┴╭╮╯╰─┼]*)(\(empty\))?\s*(.*)",
         )?;
-        let re_lines = Regex::new(r"^[ │]*\S+[ │]*(.*)\n[ │├─╯╮]*(.*)")?;
+        let re_lines = Regex::new(r"^[ │]*\S+[ │]*(.*)\n[ │├┤┬┴╭╮╯╰─┼]*(.*)")?;
 
         let captures = re_fields
             .captures(&clean_string)
@@ -276,8 +276,7 @@ impl Commit {
         let mut graph_indent: String = line2_graph_chars
             .chars()
             .map(|c| match c {
-                '│' | ' ' => c,
-                '├' => '│',
+                '│' | '├' | '┤' | '┬' | '╭' | '╮' | '┼' => '│',
                 _ => ' ',
             })
             .collect();
