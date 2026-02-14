@@ -5,6 +5,7 @@
 !Cargo.lock
 !Cargo.toml
 !Justfile
+!LICENSE
 !README.md
 !flake.lock
 !flake.nix
