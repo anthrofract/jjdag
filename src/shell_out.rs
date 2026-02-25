@@ -130,25 +130,33 @@ impl JjCommand {
             "--config",
             "ui.streampager.interface=full-screen-clear-output",
             "--config",
+            "template-aliases.\"format_short_change_id(id)\"=format_short_id(id)",
+            "--config",
+            "template-aliases.\"format_short_id(id)\"=id.shortest(8)",
+            "--config",
+            r#"template-aliases."format_short_signature(signature)"="coalesce(signature.email(), email_placeholder)""#,
+            "--config",
+            r#"template-aliases."format_timestamp(timestamp)"='timestamp.local().format("%Y-%m-%d %H:%M:%S")'"#,
+            "--config",
             r#"templates.log_node=
-            coalesce(
-              if(!self, label("elided", "~")),
-              label(
-                separate(" ",
-                  if(current_working_copy, "working_copy"),
-                  if(immutable, "immutable"),
-                  if(conflict, "conflict"),
-                ),
                 coalesce(
-                  if(current_working_copy, "@"),
-                  if(root, "┴"),
-                  if(immutable, "●"),
-                  if(conflict, "⊗"),
-                  "○",
+                  if(!self, label("elided", "~")),
+                  label(
+                    separate(" ",
+                      if(current_working_copy, "working_copy"),
+                      if(immutable, "immutable"),
+                      if(conflict, "conflict"),
+                    ),
+                    coalesce(
+                      if(current_working_copy, "@"),
+                      if(root, "┴"),
+                      if(immutable, "●"),
+                      if(conflict, "⊗"),
+                      "○",
+                    )
+                  )
                 )
-              )
-            )
-        "#,
+            "#,
             "--repository",
             &self.global_args.repository,
         ];
