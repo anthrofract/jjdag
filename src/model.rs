@@ -1113,6 +1113,15 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
+    pub fn jj_resolve(&mut self, term: Term) -> Result<()> {
+        let Some(change_id) = self.get_selected_change_id() else {
+            return self.invalid_selection();
+        };
+        let maybe_file_path = self.get_selected_file_path();
+        let cmd = JjCommand::resolve(change_id, maybe_file_path, self.global_args.clone(), term);
+        self.queue_jj_command(cmd)
+    }
+
     pub fn jj_restore(&mut self, mode: RestoreMode) -> Result<()> {
         let (flags, maybe_file_path) = match mode {
             RestoreMode::ChangesIn => {

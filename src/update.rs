@@ -78,6 +78,7 @@ pub enum Message {
     },
     Redo,
     Refresh,
+    Resolve,
     Restore {
         mode: RestoreMode,
     },
@@ -445,6 +446,7 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
             destination,
         } => model.jj_rebase(source_type, destination_type, destination)?,
         Message::Redo => model.jj_redo()?,
+        Message::Resolve => model.jj_resolve(term)?,
         Message::Restore { mode } => model.jj_restore(mode)?,
         Message::Revert {
             revision,

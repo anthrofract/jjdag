@@ -47,6 +47,7 @@ Once you run the program you can press `?` to show the help info. Most of the co
 - `jj prev`
 - `jj rebase`
 - `jj redo`
+- `jj resolve`
 - `jj restore`
 - `jj revert`
 - `jj sign`

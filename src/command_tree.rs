@@ -746,6 +746,12 @@ impl CommandTree {
             ),
             (
                 "Commands",
+                "Resolve",
+                vec![KeyCode::Char('O')],
+                CommandTreeNode::new_action(Message::Resolve),
+            ),
+            (
+                "Commands",
                 "Parallelize",
                 vec![KeyCode::Char('p')],
                 CommandTreeNode::new_children(),

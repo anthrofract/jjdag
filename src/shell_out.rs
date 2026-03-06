@@ -346,6 +346,19 @@ impl JjCommand {
         Self::_new(&args, global_args, None, ReturnOutput::Stderr)
     }
 
+    pub fn resolve(
+        change_id: &str,
+        maybe_file_path: Option<&str>,
+        global_args: GlobalArgs,
+        term: Term,
+    ) -> Self {
+        let mut args = vec!["resolve", "-r", change_id];
+        if let Some(file_path) = maybe_file_path {
+            args.push(file_path);
+        }
+        Self::_new(&args, global_args, Some(term), ReturnOutput::Stderr)
+    }
+
     pub fn restore(flags: &[&str], maybe_file_path: Option<&str>, global_args: GlobalArgs) -> Self {
         let mut args = vec!["restore"];
         args.extend_from_slice(flags);
