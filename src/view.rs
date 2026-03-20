@@ -1,9 +1,9 @@
-use crate::model::Model;
+use crate::model::{Model, State};
 
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, Paragraph},
 };
@@ -18,7 +18,9 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     frame.render_widget(header, layout[0]);
     frame.render_stateful_widget(log_list, layout[1], &mut model.log_list_state);
     model.log_list_layout = layout[1];
-    if let Some(info_list) = render_info_list(model) {
+    if model.state == State::EnteringText {
+        render_text_input(model, frame, layout[2]);
+    } else if let Some(info_list) = render_info_list(model) {
         frame.render_widget(info_list, layout[2]);
     }
 }
@@ -29,7 +31,9 @@ fn render_layout(model: &Model, area: Rect) -> std::rc::Rc<[Rect]> {
         .constraints([
             Constraint::Length(2),
             Constraint::Min(0),
-            if let Some(info_list) = &model.info_list {
+            if model.state == State::EnteringText {
+                Constraint::Length(3)
+            } else if let Some(info_list) = &model.info_list {
                 Constraint::Length(info_list.lines.len() as u16 + 2)
             } else {
                 Constraint::Length(0)
@@ -97,4 +101,47 @@ fn render_info_list(model: &Model) -> Option<List<'static>> {
                 .border_style(Style::default().fg(Color::Blue)),
         ),
     )
+}
+
+fn render_text_input(model: &mut Model, frame: &mut Frame, area: Rect) {
+    let Some(text_input) = model.text_input.as_mut() else {
+        return;
+    };
+
+    let input_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::Blue));
+    let input_inner = input_block.inner(area);
+    frame.render_widget(input_block, area);
+
+    let prompt = format!("{}: ", text_input.prompt);
+    let prompt_width = (prompt.len() as u16).min(input_inner.width);
+    if prompt_width > 0 {
+        frame.render_widget(
+            Paragraph::new(prompt).style(
+                Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Rect {
+                x: input_inner.x,
+                y: input_inner.y,
+                width: prompt_width,
+                height: input_inner.height,
+            },
+        );
+    }
+
+    if input_inner.width > prompt_width {
+        text_input.textarea.set_block(Block::default());
+        frame.render_widget(
+            &text_input.textarea,
+            Rect {
+                x: input_inner.x + prompt_width,
+                y: input_inner.y,
+                width: input_inner.width - prompt_width,
+                height: input_inner.height,
+            },
+        );
+    }
 }

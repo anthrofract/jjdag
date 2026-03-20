@@ -4,11 +4,7 @@ use anyhow::{Result, anyhow};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use regex::Regex;
-use std::{
-    env,
-    io::{Read, Write},
-    process::Command,
-};
+use std::{env, io::Read, process::Command};
 
 #[derive(Debug)]
 pub struct JjCommand {
@@ -217,6 +213,11 @@ impl JjCommand {
     pub fn describe(change_id: &str, global_args: GlobalArgs, term: Term) -> Self {
         let args = ["describe", change_id];
         Self::_new(&args, global_args, Some(term), ReturnOutput::Stderr)
+    }
+
+    pub fn describe_with_message(change_id: &str, message: &str, global_args: GlobalArgs) -> Self {
+        let args = ["describe", change_id, "-m", message];
+        Self::_new(&args, global_args, None, ReturnOutput::Stderr)
     }
 
     pub fn duplicate(
@@ -620,55 +621,6 @@ impl std::error::Error for JjCommandError {}
 struct JjCommandOutput {
     stdout: String,
     stderr: String,
-}
-
-pub fn get_input_from_editor(
-    interactive_term: Term,
-    starting_text: Option<&str>,
-    help_text: Option<&str>,
-) -> Result<Option<String>> {
-    // Create temp file
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".jjdescription")
-        .tempfile()?;
-    if let Some(text) = starting_text {
-        writeln!(temp_file, "{text}")?;
-        temp_file.flush()?;
-    }
-    if let Some(text) = help_text {
-        writeln!(temp_file, "\n\nJJ: {text}")?;
-        writeln!(
-            temp_file,
-            "JJ: Lines starting with \"JJ:\" (like this one) will be removed."
-        )?;
-
-        temp_file.flush()?;
-    }
-    let temp_path = temp_file.path().to_path_buf();
-
-    // Open editor in temp file
-    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
-    terminal::relinquish_terminal()?;
-    let status = Command::new(&editor).arg(&temp_path).status()?;
-    terminal::takeover_terminal(&interactive_term)?;
-    if !status.success() {
-        anyhow::bail!("Editor exited with non-zero status");
-    }
-
-    // Remove all lines starting with "JJ: "
-    let contents = std::fs::read_to_string(&temp_path)?;
-    let contents: String = contents
-        .lines()
-        .filter(|line| !line.starts_with("JJ:"))
-        .collect::<Vec<&str>>()
-        .join("\n")
-        .trim()
-        .to_string();
-    if contents.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(contents))
-    }
 }
 
 pub fn open_file_in_editor(interactive_term: Term, file_path: &str) -> Result<()> {

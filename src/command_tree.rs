@@ -360,6 +360,12 @@ impl CommandTree {
                 "Describe",
                 "Selection",
                 vec![KeyCode::Char('d'), KeyCode::Char('d')],
+                CommandTreeNode::new_action(Message::DescribeInline),
+            ),
+            (
+                "Describe",
+                "Selection in editor",
+                vec![KeyCode::Char('d'), KeyCode::Char('D')],
                 CommandTreeNode::new_action(Message::Describe),
             ),
             (

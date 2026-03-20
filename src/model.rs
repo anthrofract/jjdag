@@ -1,7 +1,7 @@
 use crate::{
     command_tree::{CommandTree, display_unbound_error_lines},
     log_tree::{DIFF_HUNK_LINE_IDX, JjLog, LogTreeNode, TreePosition, get_parent_tree_position},
-    shell_out::{JjCommand, JjCommandError, get_input_from_editor, open_file_in_editor},
+    shell_out::{JjCommand, JjCommandError, open_file_in_editor},
     terminal::Term,
     update::{
         AbandonMode, AbsorbMode, BookmarkMoveMode, DuplicateDestination, DuplicateDestinationType,
@@ -14,12 +14,14 @@ use crate::{
 };
 use ansi_to_tui::IntoText;
 use anyhow::Result;
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::Rect,
+    style::Style,
     text::{Line, Text},
     widgets::ListState,
 };
+use ratatui_textarea::{CursorMove, TextArea};
 
 pub const DEFAULT_REVSET: &str = "root() | remote_bookmarks() | ancestors(immutable_heads().., 24)";
 
@@ -29,7 +31,53 @@ const LOG_LIST_SCROLL_PADDING: usize = 0;
 pub enum State {
     #[default]
     Running,
+    EnteringText,
     Quit,
+}
+
+#[derive(Debug)]
+pub struct TextInputSession {
+    pub prompt: String,
+    pub textarea: TextArea<'static>,
+    pub action: TextInputAction,
+}
+
+#[derive(Debug, Clone)]
+pub enum TextInputAction {
+    SetRevset,
+    Describe,
+    BookmarkCreate,
+    BookmarkDelete,
+    BookmarkForget {
+        include_remotes: bool,
+    },
+    BookmarkRenameFrom,
+    BookmarkRenameTo {
+        old_name: String,
+    },
+    BookmarkSet,
+    BookmarkTrack,
+    BookmarkUntrack,
+    EditTarget,
+    FileTrack,
+    GitFetchBranch,
+    GitFetchRemote,
+    GitPushNamed {
+        change_id: String,
+    },
+    GitPushBookmark,
+    MetaeditAuthor {
+        change_id: String,
+    },
+    MetaeditAuthorTimestamp {
+        change_id: String,
+    },
+    NewAtTarget,
+    NextPrevOffset {
+        direction: NextPrevDirection,
+        mode: NextPrevMode,
+    },
+    ParallelizeRevset,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +106,7 @@ pub struct Model {
     pub log_list_layout: Rect,
     pub log_list_scroll_padding: usize,
     pub info_list: Option<Text<'static>>,
+    pub text_input: Option<TextInputSession>,
 }
 
 #[derive(Debug)]
@@ -84,6 +133,7 @@ impl Model {
             log_list_layout: Rect::ZERO,
             log_list_scroll_padding: LOG_LIST_SCROLL_PADDING,
             info_list: None,
+            text_input: None,
             display_repository: format_repository_for_display(&repository),
             global_args: GlobalArgs {
                 repository,
@@ -322,6 +372,8 @@ impl Model {
     }
 
     pub fn clear(&mut self) {
+        self.state = State::Running;
+        self.text_input = None;
         self.info_list = None;
         self.saved_tree_position = None;
         self.saved_change_id = None;
@@ -352,14 +404,46 @@ impl Model {
         self.info_list = Some(err.to_string().into_text().unwrap());
     }
 
-    pub fn set_revset(&mut self, term: Term) -> Result<()> {
-        let old_revset = self.revset.clone();
-        let Some(new_revset) =
-            get_input_from_editor(term, Some(&self.revset), Some("Enter the new revset"))?
-        else {
-            return self.cancelled();
+    fn start_text_input(&mut self, prompt: &str, initial_text: &str, action: TextInputAction) {
+        let mut textarea = TextArea::new(vec![initial_text.to_string()]);
+        textarea.move_cursor(CursorMove::End);
+        textarea.set_cursor_line_style(Style::default());
+
+        self.info_list = None;
+        self.state = State::EnteringText;
+        self.text_input = Some(TextInputSession {
+            prompt: prompt.to_string(),
+            textarea,
+            action,
+        });
+    }
+
+    pub fn submit_text_input(&mut self) -> Result<Option<Message>> {
+        self.state = State::Running;
+        let Some(session) = self.text_input.take() else {
+            return Ok(None);
         };
-        self.revset = new_revset.clone();
+
+        let value = session.textarea.lines()[0].trim().to_string();
+        if value.is_empty() {
+            self.cancelled()?;
+            return Ok(None);
+        }
+
+        self.apply_text_input(session.action, value)?;
+        Ok(None)
+    }
+
+    pub fn forward_text_input_key(&mut self, key: KeyEvent) {
+        if let Some(session) = self.text_input.as_mut() {
+            session.textarea.input(key);
+        }
+    }
+
+    fn apply_set_revset_from_input(&mut self, new_revset: String) -> Result<()> {
+        let old_revset = self.revset.clone();
+        self.revset = new_revset;
+
         match self.sync() {
             Err(err) => {
                 self.display_error_lines(&err);
@@ -370,6 +454,82 @@ impl Model {
             }
         }
         Ok(())
+    }
+
+    pub fn set_revset(&mut self) {
+        let initial_text = self.revset.clone();
+        self.start_text_input("Revset", &initial_text, TextInputAction::SetRevset);
+    }
+
+    pub fn start_describe_input(&mut self) -> Result<()> {
+        if self.get_selected_change_id().is_none() {
+            return self.invalid_selection();
+        }
+        let tree_pos = self.get_selected_tree_position();
+        let initial_description = self
+            .jj_log
+            .get_tree_commit(&tree_pos)
+            .and_then(|commit| commit.description_first_line.as_deref())
+            .unwrap_or("")
+            .to_string();
+        self.start_text_input("Describe", &initial_description, TextInputAction::Describe);
+        Ok(())
+    }
+
+    fn apply_describe_from_input(&mut self, message: String) -> Result<()> {
+        let Some(change_id) = self.get_selected_change_id() else {
+            return self.invalid_selection();
+        };
+
+        let cmd = JjCommand::describe_with_message(change_id, &message, self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    fn apply_text_input(&mut self, action: TextInputAction, value: String) -> Result<()> {
+        match action {
+            TextInputAction::SetRevset => self.apply_set_revset_from_input(value),
+            TextInputAction::Describe => self.apply_describe_from_input(value),
+            TextInputAction::BookmarkCreate => self.apply_bookmark_create_from_input(value),
+            TextInputAction::BookmarkDelete => self.apply_bookmark_delete_from_input(value),
+            TextInputAction::BookmarkForget { include_remotes } => {
+                self.apply_bookmark_forget_from_input(value, include_remotes)
+            }
+            TextInputAction::BookmarkRenameFrom => {
+                self.start_text_input(
+                    "Bookmark to",
+                    "",
+                    TextInputAction::BookmarkRenameTo { old_name: value },
+                );
+                Ok(())
+            }
+            TextInputAction::BookmarkRenameTo { old_name } => {
+                self.apply_bookmark_rename_from_input(old_name, value)
+            }
+            TextInputAction::BookmarkSet => self.apply_bookmark_set_from_input(value),
+            TextInputAction::BookmarkTrack => self.apply_bookmark_track_from_input(value),
+            TextInputAction::BookmarkUntrack => self.apply_bookmark_untrack_from_input(value),
+            TextInputAction::EditTarget => self.apply_edit_target_from_input(value),
+            TextInputAction::FileTrack => self.apply_file_track_from_input(value),
+            TextInputAction::GitFetchBranch => self.apply_git_fetch_from_input(Some("-b"), value),
+            TextInputAction::GitFetchRemote => {
+                self.apply_git_fetch_from_input(Some("--remote"), value)
+            }
+            TextInputAction::GitPushNamed { change_id } => {
+                self.apply_git_push_named_from_input(change_id, value)
+            }
+            TextInputAction::GitPushBookmark => self.apply_git_push_from_input(Some("-b"), value),
+            TextInputAction::MetaeditAuthor { change_id } => {
+                self.apply_metaedit_from_input(change_id, "--author", value)
+            }
+            TextInputAction::MetaeditAuthorTimestamp { change_id } => {
+                self.apply_metaedit_from_input(change_id, "--author-timestamp", value)
+            }
+            TextInputAction::NewAtTarget => self.apply_new_at_target_from_input(value),
+            TextInputAction::NextPrevOffset { direction, mode } => {
+                self.apply_next_prev_from_input(direction, mode, value)
+            }
+            TextInputAction::ParallelizeRevset => self.apply_parallelize_from_input(value),
+        }
     }
 
     pub fn show_help(&mut self) {
@@ -575,41 +735,54 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_create(&mut self, term: Term) -> Result<()> {
+    fn apply_bookmark_create_from_input(&mut self, bookmark_names: String) -> Result<()> {
         let Some(change_id) = self.get_selected_change_id() else {
             return self.invalid_selection();
-        };
-        let Some(bookmark_names) =
-            get_input_from_editor(term, None, Some("Enter the new bookmark(s)"))?
-        else {
-            return self.cancelled();
         };
         let cmd = JjCommand::bookmark_create(&bookmark_names, change_id, self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_delete(&mut self, term: Term) -> Result<()> {
-        let Some(bookmark_names) =
-            get_input_from_editor(term, None, Some("Enter the bookmark(s) to delete"))?
-        else {
-            return self.cancelled();
-        };
+    pub fn jj_bookmark_create(&mut self) -> Result<()> {
+        if self.get_selected_change_id().is_none() {
+            return self.invalid_selection();
+        }
+        self.start_text_input("Bookmark create", "", TextInputAction::BookmarkCreate);
+        Ok(())
+    }
+
+    fn apply_bookmark_delete_from_input(&mut self, bookmark_names: String) -> Result<()> {
         let cmd = JjCommand::bookmark_delete(&bookmark_names, self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_forget(&mut self, include_remotes: bool, term: Term) -> Result<()> {
-        let prompt = if include_remotes {
-            "Enter the bookmark(s) to forget, including remotes"
-        } else {
-            "Enter the bookmark(s) to forget"
-        };
-        let Some(bookmark_names) = get_input_from_editor(term, None, Some(prompt))? else {
-            return self.cancelled();
-        };
+    pub fn jj_bookmark_delete(&mut self) -> Result<()> {
+        self.start_text_input("Bookmark delete", "", TextInputAction::BookmarkDelete);
+        Ok(())
+    }
+
+    fn apply_bookmark_forget_from_input(
+        &mut self,
+        bookmark_names: String,
+        include_remotes: bool,
+    ) -> Result<()> {
         let cmd =
             JjCommand::bookmark_forget(&bookmark_names, include_remotes, self.global_args.clone());
         self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_bookmark_forget(&mut self, include_remotes: bool) -> Result<()> {
+        let prompt = if include_remotes {
+            "Bookmark forget remotes"
+        } else {
+            "Bookmark forget"
+        };
+        self.start_text_input(
+            prompt,
+            "",
+            TextInputAction::BookmarkForget { include_remotes },
+        );
+        Ok(())
     }
 
     pub fn jj_bookmark_move(&mut self, mode: BookmarkMoveMode) -> Result<()> {
@@ -648,17 +821,11 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_rename(&mut self, term: Term) -> Result<()> {
-        let Some(old_bookmark_name) =
-            get_input_from_editor(term.clone(), None, Some("Enter the bookmark to rename"))?
-        else {
-            return self.cancelled();
-        };
-        let Some(new_bookmark_name) =
-            get_input_from_editor(term, None, Some("Enter the bookmark to rename to"))?
-        else {
-            return self.cancelled();
-        };
+    fn apply_bookmark_rename_from_input(
+        &mut self,
+        old_bookmark_name: String,
+        new_bookmark_name: String,
+    ) -> Result<()> {
         let cmd = JjCommand::bookmark_rename(
             &old_bookmark_name,
             &new_bookmark_name,
@@ -667,37 +834,45 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_set(&mut self, term: Term) -> Result<()> {
+    pub fn jj_bookmark_rename(&mut self) -> Result<()> {
+        self.start_text_input("Bookmark from", "", TextInputAction::BookmarkRenameFrom);
+        Ok(())
+    }
+
+    fn apply_bookmark_set_from_input(&mut self, bookmark_names: String) -> Result<()> {
         let Some(change_id) = self.get_selected_change_id() else {
             return self.invalid_selection();
-        };
-        let Some(bookmark_names) =
-            get_input_from_editor(term, None, Some("Enter the bookmark(s) to set"))?
-        else {
-            return self.cancelled();
         };
         let cmd = JjCommand::bookmark_set(&bookmark_names, change_id, self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_track(&mut self, term: Term) -> Result<()> {
-        let Some(bookmark_at_remote) =
-            get_input_from_editor(term, None, Some("Enter the bookmark@remote to track"))?
-        else {
-            return self.cancelled();
-        };
+    pub fn jj_bookmark_set(&mut self) -> Result<()> {
+        if self.get_selected_change_id().is_none() {
+            return self.invalid_selection();
+        }
+        self.start_text_input("Bookmark set", "", TextInputAction::BookmarkSet);
+        Ok(())
+    }
+
+    fn apply_bookmark_track_from_input(&mut self, bookmark_at_remote: String) -> Result<()> {
         let cmd = JjCommand::bookmark_track(&bookmark_at_remote, self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_bookmark_untrack(&mut self, term: Term) -> Result<()> {
-        let Some(bookmark_at_remote) =
-            get_input_from_editor(term, None, Some("Enter the bookmark@remote to untrack"))?
-        else {
-            return self.cancelled();
-        };
+    pub fn jj_bookmark_track(&mut self) -> Result<()> {
+        self.start_text_input("Bookmark track", "", TextInputAction::BookmarkTrack);
+        Ok(())
+    }
+
+    fn apply_bookmark_untrack_from_input(&mut self, bookmark_at_remote: String) -> Result<()> {
         let cmd = JjCommand::bookmark_untrack(&bookmark_at_remote, self.global_args.clone());
         self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_bookmark_untrack(&mut self) -> Result<()> {
+        self.start_text_input("Bookmark untrack", "", TextInputAction::BookmarkUntrack);
+        Ok(())
     }
 
     pub fn jj_commit(&mut self, term: Term) -> Result<()> {
@@ -765,13 +940,15 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_edit_target(&mut self, term: Term) -> Result<()> {
-        let Some(target) = get_input_from_editor(term, None, Some("Enter the target to edit"))?
-        else {
-            return self.cancelled();
-        };
+    fn apply_edit_target_from_input(&mut self, target: String) -> Result<()> {
         let cmd = JjCommand::edit(&target, self.global_args.clone());
         self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_edit_target(&mut self) -> Result<()> {
+        let initial_text = self.get_selected_change_id().unwrap_or("").to_string();
+        self.start_text_input("Edit target", &initial_text, TextInputAction::EditTarget);
+        Ok(())
     }
 
     pub fn jj_evolog(&mut self, patch: bool, term: Term) -> Result<()> {
@@ -782,14 +959,15 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_file_track(&mut self, term: Term) -> Result<()> {
-        let Some(file_path) =
-            get_input_from_editor(term, None, Some("Enter the file path(s) to track"))?
-        else {
-            return self.cancelled();
-        };
+    fn apply_file_track_from_input(&mut self, file_path: String) -> Result<()> {
         let cmd = JjCommand::file_track(&file_path, self.global_args.clone());
         self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_file_track(&mut self) -> Result<()> {
+        let initial_text = self.get_selected_file_path().unwrap_or("").to_string();
+        self.start_text_input("File track", &initial_text, TextInputAction::FileTrack);
+        Ok(())
     }
 
     pub fn jj_file_untrack(&mut self) -> Result<()> {
@@ -803,33 +981,45 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_git_fetch(&mut self, mode: GitFetchMode, term: Term) -> Result<()> {
-        let (flag, value) = match mode {
+    fn apply_git_fetch_from_input(&mut self, flag: Option<&str>, value: String) -> Result<()> {
+        let cmd = JjCommand::git_fetch(flag, Some(&value), self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_git_fetch(&mut self, mode: GitFetchMode) -> Result<()> {
+        let (flag, value): (Option<&str>, Option<String>) = match mode {
             GitFetchMode::Default => (None, None),
             GitFetchMode::AllRemotes => (Some("--all-remotes"), None),
             GitFetchMode::Tracked => (Some("--tracked"), None),
             GitFetchMode::Branch => {
-                let Some(branch) =
-                    get_input_from_editor(term, None, Some("Enter the branch to fetch"))?
-                else {
-                    return self.cancelled();
-                };
-                (Some("-b"), Some(branch))
+                self.start_text_input("Fetch branch", "", TextInputAction::GitFetchBranch);
+                return Ok(());
             }
             GitFetchMode::Remote => {
-                let Some(remote) =
-                    get_input_from_editor(term, None, Some("Enter the remote to fetch from"))?
-                else {
-                    return self.cancelled();
-                };
-                (Some("--remote"), Some(remote))
+                self.start_text_input("Fetch remote", "", TextInputAction::GitFetchRemote);
+                return Ok(());
             }
         };
         let cmd = JjCommand::git_fetch(flag, value.as_deref(), self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_git_push(&mut self, mode: GitPushMode, term: Term) -> Result<()> {
+    fn apply_git_push_named_from_input(
+        &mut self,
+        change_id: String,
+        bookmark_name: String,
+    ) -> Result<()> {
+        let value = format!("{}={}", bookmark_name, change_id);
+        let cmd = JjCommand::git_push(Some("--named"), Some(&value), self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    fn apply_git_push_from_input(&mut self, flag: Option<&str>, value: String) -> Result<()> {
+        let cmd = JjCommand::git_push(flag, Some(&value), self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_git_push(&mut self, mode: GitPushMode) -> Result<()> {
         let (flag, value) = match mode {
             GitPushMode::Default => (None, None),
             GitPushMode::All => (Some("--all"), None),
@@ -851,26 +1041,18 @@ impl Model {
                 let Some(change_id) = self.get_selected_change_id() else {
                     return self.invalid_selection();
                 };
-                let Some(bookmark_name) = get_input_from_editor(
-                    term,
-                    None,
-                    Some("Enter the bookmark name for this revision"),
-                )?
-                else {
-                    return self.cancelled();
-                };
-                (
-                    Some("--named"),
-                    Some(format!("{}={}", bookmark_name, change_id)),
-                )
+                self.start_text_input(
+                    "Bookmark name",
+                    "",
+                    TextInputAction::GitPushNamed {
+                        change_id: change_id.to_string(),
+                    },
+                );
+                return Ok(());
             }
             GitPushMode::Bookmark => {
-                let Some(bookmark_name) =
-                    get_input_from_editor(term, None, Some("Enter the bookmark to push"))?
-                else {
-                    return self.cancelled();
-                };
-                (Some("-b"), Some(bookmark_name))
+                self.start_text_input("Push bookmark", "", TextInputAction::GitPushBookmark);
+                return Ok(());
             }
         };
         let cmd = JjCommand::git_push(flag, value.as_deref(), self.global_args.clone());
@@ -906,37 +1088,45 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_metaedit(&mut self, action: MetaeditAction, term: Term) -> Result<()> {
+    fn apply_metaedit_from_input(
+        &mut self,
+        change_id: String,
+        flag: &str,
+        value: String,
+    ) -> Result<()> {
+        let cmd = JjCommand::metaedit(&change_id, flag, Some(&value), self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_metaedit(&mut self, action: MetaeditAction) -> Result<()> {
         let Some(change_id) = self.get_selected_change_id() else {
             return self.invalid_selection();
         };
 
-        let (flag, value) = match action {
+        let (flag, value): (&str, Option<String>) = match action {
             MetaeditAction::UpdateChangeId => ("--update-change-id", None),
             MetaeditAction::UpdateAuthorTimestamp => ("--update-author-timestamp", None),
             MetaeditAction::UpdateAuthor => ("--update-author", None),
             MetaeditAction::ForceRewrite => ("--force-rewrite", None),
             MetaeditAction::SetAuthor => {
-                let Some(author) = get_input_from_editor(
-                    term,
-                    None,
-                    Some("Enter the author (e.g. 'Name <email@example.com>')"),
-                )?
-                else {
-                    return self.cancelled();
-                };
-                ("--author", Some(author))
+                self.start_text_input(
+                    "Author",
+                    "",
+                    TextInputAction::MetaeditAuthor {
+                        change_id: change_id.to_string(),
+                    },
+                );
+                return Ok(());
             }
             MetaeditAction::SetAuthorTimestamp => {
-                let Some(timestamp) = get_input_from_editor(
-                    term,
-                    None,
-                    Some("Enter the author timestamp (e.g. '2000-01-23T01:23:45-08:00')"),
-                )?
-                else {
-                    return self.cancelled();
-                };
-                ("--author-timestamp", Some(timestamp))
+                self.start_text_input(
+                    "Author timestamp",
+                    "",
+                    TextInputAction::MetaeditAuthorTimestamp {
+                        change_id: change_id.to_string(),
+                    },
+                );
+                return Ok(());
             }
         };
 
@@ -979,22 +1169,22 @@ impl Model {
         self.queue_jj_commands(vec![fetch_cmd, new_cmd])
     }
 
-    pub fn jj_new_at_target(&mut self, term: Term) -> Result<()> {
-        let Some(target) =
-            get_input_from_editor(term, None, Some("Enter the revision or bookmark"))?
-        else {
-            return self.cancelled();
-        };
+    fn apply_new_at_target_from_input(&mut self, target: String) -> Result<()> {
         let cmd = JjCommand::new(&target, &[], self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_next_prev(
+    pub fn jj_new_at_target(&mut self) -> Result<()> {
+        let initial_text = self.get_selected_change_id().unwrap_or("").to_string();
+        self.start_text_input("New target", &initial_text, TextInputAction::NewAtTarget);
+        Ok(())
+    }
+
+    fn apply_next_prev_from_input(
         &mut self,
         direction: NextPrevDirection,
         mode: NextPrevMode,
-        offset: bool,
-        term: Term,
+        offset: String,
     ) -> Result<()> {
         let mode = match mode {
             NextPrevMode::Conflict => Some("--conflict"),
@@ -1003,26 +1193,50 @@ impl Model {
             NextPrevMode::NoEdit => Some("--no-edit"),
         };
 
-        let offset = if offset {
-            let Some(offset) = get_input_from_editor(term, None, Some("Enter the offset"))? else {
-                self.cancelled()?;
-                return Ok(());
-            };
-            Some(offset)
-        } else {
-            None
+        let direction = match direction {
+            NextPrevDirection::Next => "next",
+            NextPrevDirection::Prev => "prev",
+        };
+        let cmd = JjCommand::next_prev(direction, mode, Some(&offset), self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_next_prev(
+        &mut self,
+        direction: NextPrevDirection,
+        mode: NextPrevMode,
+        offset: bool,
+    ) -> Result<()> {
+        if offset {
+            self.start_text_input(
+                "Offset",
+                "",
+                TextInputAction::NextPrevOffset { direction, mode },
+            );
+            return Ok(());
+        }
+
+        let mode = match mode {
+            NextPrevMode::Conflict => Some("--conflict"),
+            NextPrevMode::Default => None,
+            NextPrevMode::Edit => Some("--edit"),
+            NextPrevMode::NoEdit => Some("--no-edit"),
         };
 
         let direction = match direction {
             NextPrevDirection::Next => "next",
             NextPrevDirection::Prev => "prev",
         };
-        let cmd =
-            JjCommand::next_prev(direction, mode, offset.as_deref(), self.global_args.clone());
+        let cmd = JjCommand::next_prev(direction, mode, None, self.global_args.clone());
         self.queue_jj_command(cmd)
     }
 
-    pub fn jj_parallelize(&mut self, source: ParallelizeSource, term: Term) -> Result<()> {
+    fn apply_parallelize_from_input(&mut self, revset: String) -> Result<()> {
+        let cmd = JjCommand::parallelize(&revset, self.global_args.clone());
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_parallelize(&mut self, source: ParallelizeSource) -> Result<()> {
         let revset = match source {
             ParallelizeSource::Range => {
                 let Some(from_change_id) = self.get_saved_change_id() else {
@@ -1034,12 +1248,8 @@ impl Model {
                 format!("{}::{}", from_change_id, to_change_id)
             }
             ParallelizeSource::Revset => {
-                let Some(revset) =
-                    get_input_from_editor(term, None, Some("Enter the revset to parallelize"))?
-                else {
-                    return self.cancelled();
-                };
-                revset
+                self.start_text_input("Parallelize revset", "", TextInputAction::ParallelizeRevset);
+                return Ok(());
             }
             ParallelizeSource::Selection => {
                 let Some(change_id) = self.get_selected_change_id() else {

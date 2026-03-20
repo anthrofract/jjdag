@@ -1,4 +1,7 @@
-use crate::{model::Model, terminal::Term};
+use crate::{
+    model::{Model, State},
+    terminal::Term,
+};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers, MouseEventKind};
 use std::time::Duration;
@@ -28,6 +31,7 @@ pub enum Message {
     Clear,
     Commit,
     Describe,
+    DescribeInline,
     Duplicate {
         destination_type: DuplicateDestinationType,
         destination: DuplicateDestination,
@@ -103,6 +107,7 @@ pub enum Message {
     SelectParentNode,
     SelectPrevNode,
     SelectPrevSiblingNode,
+    SubmitTextInput,
     SetRevset,
     ShowHelp,
     Sign {
@@ -330,6 +335,17 @@ fn handle_event(model: &mut Model) -> Result<Option<Message>> {
 }
 
 fn handle_key(model: &mut Model, key: event::KeyEvent) -> Option<Message> {
+    if model.state == State::EnteringText {
+        return match key.code {
+            KeyCode::Esc => Some(Message::Clear),
+            KeyCode::Enter => Some(Message::SubmitTextInput),
+            _ => {
+                model.forward_text_input_key(key);
+                None
+            }
+        };
+    }
+
     match key.code {
         KeyCode::Char('q') => Some(Message::Quit),
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Message::Quit),
@@ -373,7 +389,8 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         Message::Clear => model.clear(),
         Message::Quit => model.quit(),
         Message::Refresh => model.refresh()?,
-        Message::SetRevset => model.set_revset(term)?,
+        Message::SetRevset => model.set_revset(),
+        Message::SubmitTextInput => return model.submit_text_input(),
         Message::ShowHelp => model.show_help(),
         Message::ToggleIgnoreImmutable => model.toggle_ignore_immutable(),
 
@@ -400,33 +417,32 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         // Commands
         Message::Abandon { mode } => model.jj_abandon(mode)?,
         Message::Absorb { mode } => model.jj_absorb(mode)?,
-        Message::BookmarkCreate => model.jj_bookmark_create(term)?,
-        Message::BookmarkDelete => model.jj_bookmark_delete(term)?,
-        Message::BookmarkForget { include_remotes } => {
-            model.jj_bookmark_forget(include_remotes, term)?
-        }
+        Message::BookmarkCreate => model.jj_bookmark_create()?,
+        Message::BookmarkDelete => model.jj_bookmark_delete()?,
+        Message::BookmarkForget { include_remotes } => model.jj_bookmark_forget(include_remotes)?,
         Message::BookmarkMove { mode } => model.jj_bookmark_move(mode)?,
-        Message::BookmarkRename => model.jj_bookmark_rename(term)?,
-        Message::BookmarkSet => model.jj_bookmark_set(term)?,
-        Message::BookmarkTrack => model.jj_bookmark_track(term)?,
-        Message::BookmarkUntrack => model.jj_bookmark_untrack(term)?,
+        Message::BookmarkRename => model.jj_bookmark_rename()?,
+        Message::BookmarkSet => model.jj_bookmark_set()?,
+        Message::BookmarkTrack => model.jj_bookmark_track()?,
+        Message::BookmarkUntrack => model.jj_bookmark_untrack()?,
         Message::Commit => model.jj_commit(term)?,
         Message::Describe => model.jj_describe(term)?,
+        Message::DescribeInline => model.start_describe_input()?,
         Message::Duplicate {
             destination_type,
             destination,
         } => model.jj_duplicate(destination_type, destination)?,
         Message::Edit => model.jj_edit()?,
-        Message::EditTarget => model.jj_edit_target(term)?,
+        Message::EditTarget => model.jj_edit_target()?,
         Message::Evolog { patch } => model.jj_evolog(patch, term)?,
-        Message::FileTrack => model.jj_file_track(term)?,
+        Message::FileTrack => model.jj_file_track()?,
         Message::FileUntrack => model.jj_file_untrack()?,
-        Message::GitFetch { mode } => model.jj_git_fetch(mode, term)?,
-        Message::GitPush { mode } => model.jj_git_push(mode, term)?,
+        Message::GitFetch { mode } => model.jj_git_fetch(mode)?,
+        Message::GitPush { mode } => model.jj_git_push(mode)?,
         Message::Interdiff { mode } => model.jj_interdiff(mode, term)?,
-        Message::Metaedit { action } => model.jj_metaedit(action, term)?,
+        Message::Metaedit { action } => model.jj_metaedit(action)?,
         Message::New { mode } => model.jj_new(mode)?,
-        Message::NewAtTarget => model.jj_new_at_target(term)?,
+        Message::NewAtTarget => model.jj_new_at_target()?,
         Message::Open => model.open_file(term)?,
         Message::NewAfterTrunkSync => model.jj_new_after_trunk_sync()?,
         Message::RebaseSelectedBranchOntoTrunk => model.jj_rebase_selected_branch_onto_trunk()?,
@@ -437,8 +453,8 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
             direction,
             mode,
             offset,
-        } => model.jj_next_prev(direction, mode, offset, term)?,
-        Message::Parallelize { source } => model.jj_parallelize(source, term)?,
+        } => model.jj_next_prev(direction, mode, offset)?,
+        Message::Parallelize { source } => model.jj_parallelize(source)?,
         Message::Rebase {
             source_type,
             destination_type,
