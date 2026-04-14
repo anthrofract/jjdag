@@ -340,10 +340,7 @@ fn handle_key(model: &mut Model, key: event::KeyEvent) -> Option<Message> {
         KeyCode::Left | KeyCode::Char('h') => Some(Message::SelectPrevSiblingNode),
         KeyCode::Right | KeyCode::Char('l') => Some(Message::SelectNextSiblingNode),
         KeyCode::Char('K') => Some(Message::SelectParentNode),
-        KeyCode::Char(' ') => Some(Message::Refresh),
-        KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(Message::Refresh)
-        }
+        KeyCode::Char(' ') | KeyCode::Backspace => Some(Message::Refresh),
         KeyCode::Tab => Some(Message::ToggleLogListFold),
         KeyCode::Esc => Some(Message::Clear),
         KeyCode::Char('@') => Some(Message::SelectCurrentWorkingCopy),

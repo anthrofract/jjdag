@@ -151,7 +151,7 @@ impl CommandTree {
         .collect();
 
         let general_help = [
-            ("Spc/Ctrl-r", "Refresh log tree"),
+            ("Spc/Bksp", "Refresh log tree"),
             ("Esc", "Clear app state"),
             ("L", "Set log revset"),
             ("I", "Toggle --ignore-immutable"),
@@ -1713,20 +1713,14 @@ impl CommandTree {
             ),
             (
                 "Commands",
-                "Undo",
-                vec![KeyCode::Char('u')],
-                CommandTreeNode::new_children(),
-            ),
-            (
-                "Undo",
                 "Undo last operation",
-                vec![KeyCode::Char('u'), KeyCode::Char('u')],
+                vec![KeyCode::Char('u')],
                 CommandTreeNode::new_action(Message::Undo),
             ),
             (
-                "Undo",
+                "Commands",
                 "Redo last operation",
-                vec![KeyCode::Char('u'), KeyCode::Char('r')],
+                vec![KeyCode::Char('U')],
                 CommandTreeNode::new_action(Message::Redo),
             ),
         ];
