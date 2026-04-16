@@ -136,6 +136,7 @@ pub struct Model {
     log_list_tree_positions: Vec<TreePosition>,
     pub log_list_layout: Rect,
     pub log_list_scroll_padding: usize,
+    pub fuzzy_viewport_height: usize,
     pub info_list: Option<Text<'static>>,
     pub text_input: Option<TextInputSession>,
 }
@@ -163,6 +164,7 @@ impl Model {
             log_list_tree_positions: Vec::new(),
             log_list_layout: Rect::ZERO,
             log_list_scroll_padding: LOG_LIST_SCROLL_PADDING,
+            fuzzy_viewport_height: 0,
             info_list: None,
             text_input: None,
             display_repository: format_repository_for_display(&repository),
@@ -723,6 +725,34 @@ impl Model {
         } else {
             fuzzy.selected += 1;
         }
+    }
+
+    pub fn page_fuzzy_selection_up(&mut self) {
+        let Some(session) = self.text_input.as_mut() else {
+            return;
+        };
+        let Some(fuzzy) = session.fuzzy.as_mut() else {
+            return;
+        };
+        if fuzzy.filtered.is_empty() {
+            return;
+        }
+        let page = self.fuzzy_viewport_height.max(1);
+        fuzzy.selected = fuzzy.selected.saturating_sub(page);
+    }
+
+    pub fn page_fuzzy_selection_down(&mut self) {
+        let Some(session) = self.text_input.as_mut() else {
+            return;
+        };
+        let Some(fuzzy) = session.fuzzy.as_mut() else {
+            return;
+        };
+        if fuzzy.filtered.is_empty() {
+            return;
+        }
+        let page = self.fuzzy_viewport_height.max(1);
+        fuzzy.selected = (fuzzy.selected + page).min(fuzzy.filtered.len() - 1);
     }
 
     pub fn has_active_fuzzy(&self) -> bool {

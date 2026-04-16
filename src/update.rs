@@ -341,7 +341,7 @@ fn handle_key(model: &mut Model, key: event::KeyEvent) -> Option<Message> {
             return match key.code {
                 KeyCode::Esc => Some(Message::Clear),
                 KeyCode::Enter => Some(Message::SubmitTextInput),
-                KeyCode::Up => {
+                KeyCode::Up | KeyCode::Tab => {
                     model.move_fuzzy_selection_up();
                     None
                 }
@@ -349,8 +349,12 @@ fn handle_key(model: &mut Model, key: event::KeyEvent) -> Option<Message> {
                     model.move_fuzzy_selection_down();
                     None
                 }
-                KeyCode::Tab => {
-                    model.move_fuzzy_selection_up();
+                KeyCode::PageUp => {
+                    model.page_fuzzy_selection_up();
+                    None
+                }
+                KeyCode::PageDown => {
+                    model.page_fuzzy_selection_down();
                     None
                 }
                 _ => {

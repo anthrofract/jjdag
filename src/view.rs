@@ -116,6 +116,7 @@ fn render_info_list(model: &Model) -> Option<List<'static>> {
 
 fn render_text_input(model: &mut Model, frame: &mut Frame, area: Rect) {
     let Some(text_input) = model.text_input.as_mut() else {
+        model.fuzzy_viewport_height = 0;
         return;
     };
 
@@ -147,6 +148,10 @@ fn render_text_input(model: &mut Model, frame: &mut Frame, area: Rect) {
     } else {
         (None, input_inner)
     };
+
+    model.fuzzy_viewport_height = candidates_area
+        .map(|area| area.height as usize)
+        .unwrap_or(0);
 
     if let Some(candidates_area) = candidates_area {
         render_fuzzy_candidates(text_input, frame, candidates_area);
