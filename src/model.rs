@@ -253,6 +253,14 @@ impl Model {
         }
     }
 
+    fn get_selected_commit_id(&self) -> Option<&str> {
+        let tree_pos = self.get_selected_tree_position();
+        match self.jj_log.get_tree_commit(&tree_pos) {
+            None => None,
+            Some(commit) => Some(&commit.commit_id),
+        }
+    }
+
     fn get_selected_file_path(&self) -> Option<&str> {
         let tree_pos = self.get_selected_tree_position();
         self.get_file_path(tree_pos)
@@ -894,15 +902,41 @@ impl Model {
     }
 
     pub fn open_file(&mut self, term: Term) -> Result<()> {
-        if !self.is_selected_working_copy() {
-            return self.invalid_selection();
-        }
-        let Some(file_path) = self.get_selected_file_path() else {
+        let Some(file_path) = self.get_selected_file_path().map(|s| s.to_string()) else {
             return self.invalid_selection();
         };
-        let full_path = format!("{}/{}", self.global_args.repository, file_path);
-        open_file_in_editor(term, &full_path)?;
-        self.info_list = Some(Text::from(format!("Opened {file_path}")));
+
+        if self.is_selected_working_copy() {
+            let full_path = format!("{}/{}", self.global_args.repository, file_path);
+            open_file_in_editor(term, &full_path)?;
+            self.info_list = Some(Text::from(format!("Opened {file_path}")));
+            return Ok(());
+        }
+
+        let Some(change_id) = self.get_selected_change_id().map(|s| s.to_string()) else {
+            return self.invalid_selection();
+        };
+        let Some(commit_id) = self.get_selected_commit_id().map(|s| s.to_string()) else {
+            return self.invalid_selection();
+        };
+
+        let cmd = JjCommand::file_show(&change_id, &file_path, self.global_args.clone());
+        let contents = cmd.run().map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        let temp_dir = tempfile::Builder::new()
+            .prefix(&format!("jjdag-{change_id}-{commit_id}-"))
+            .tempdir()?;
+        let target_path = temp_dir.path().join(&file_path);
+        if let Some(parent) = target_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&target_path, contents)?;
+        let target_path_str = target_path.to_string_lossy().to_string();
+
+        open_file_in_editor(term, &target_path_str)?;
+        self.info_list = Some(Text::from(format!(
+            "Opened {file_path} @ {change_id} (read-only copy)"
+        )));
         Ok(())
     }
 

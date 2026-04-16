@@ -548,6 +548,11 @@ impl JjCommand {
         Self::_new_no_color(&args, global_args, ReturnOutput::Stdout)
     }
 
+    pub fn file_show(change_id: &str, file_path: &str, global_args: GlobalArgs) -> Self {
+        let args = ["file", "show", "--revision", change_id, file_path];
+        Self::_new_no_color(&args, global_args, ReturnOutput::Stdout)
+    }
+
     pub fn bookmark_create(bookmark_names: &str, change_id: &str, global_args: GlobalArgs) -> Self {
         let args = [
             "bookmark",
