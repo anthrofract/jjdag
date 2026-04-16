@@ -25,7 +25,7 @@ use ratatui_textarea::{CursorMove, TextArea};
 
 pub const DEFAULT_REVSET: &str = "root() | remote_bookmarks() | ancestors(immutable_heads().., 24)";
 
-const LOG_LIST_SCROLL_PADDING: usize = 0;
+const LOG_LIST_SCROLL_PADDING: usize = 5;
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum State {
