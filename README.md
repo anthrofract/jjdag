@@ -64,7 +64,13 @@ With cargo:
 cargo install --git https://github.com/anthrofract/jjdag
 ```
 
-Or with the nix flake:
+Or run the nix flake:
+```sh
+nix run github:anthrofract/jjdag
+```
+
+Or install the nix flake:
+
 ```nix
 inputs.jjdag.url = "github:anthrofract/jjdag";
 ```
