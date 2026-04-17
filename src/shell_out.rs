@@ -652,6 +652,24 @@ impl JjCommand {
         Self::new(&args, global_args, None, ReturnOutput::Stderr)
     }
 
+    pub fn jj_config_get_revsets_log(repository: &str) -> Result<String, JjCommandError> {
+        let args = ["--repository", repository, "config", "get", "revsets.log"];
+        let output = Command::new("jj")
+            .args(args)
+            .output()
+            .map_err(JjCommandError::new_other)?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout)
+                .to_string()
+                .trim()
+                .to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).into();
+            Err(JjCommandError::new_failed(stderr))
+        }
+    }
+
     pub fn jj_ensure_valid_repo(repository: &str) -> Result<String, JjCommandError> {
         let args = [
             "--repository",

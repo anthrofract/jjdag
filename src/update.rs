@@ -114,7 +114,9 @@ pub enum Message {
     SelectParentNode,
     SelectPrevNode,
     SelectPrevSiblingNode,
-    SetRevset,
+    SetRevset {
+        mode: SetRevsetMode,
+    },
     ShowHelp,
     Sign {
         action: SignAction,
@@ -287,6 +289,21 @@ pub enum RevertRevision {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
+pub enum SetRevsetMode {
+    All,
+    Bookmarks,
+    Conflicts,
+    Custom,
+    Default,
+    JjDefault,
+    Mine,
+    Mutable,
+    Recent,
+    Stack,
+    WorkingCopyAncestry,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum SignAction {
     Sign,
     Unsign,
@@ -327,10 +344,8 @@ pub fn update(terminal: Term, model: &mut Model) -> Result<()> {
 fn handle_event(model: &mut Model) -> Result<Option<Message>> {
     if event::poll(EVENT_POLL_DURATION)? {
         match event::read()? {
-            Event::Key(key) => {
-                if key.kind == event::KeyEventKind::Press {
-                    return Ok(handle_key(model, key));
-                }
+            Event::Key(key) if key.kind == event::KeyEventKind::Press => {
+                return Ok(handle_key(model, key));
             }
             Event::Mouse(mouse) => {
                 return Ok(handle_mouse(mouse));
@@ -394,7 +409,6 @@ fn handle_key(model: &mut Model, key: event::KeyEvent) -> Option<Message> {
         KeyCode::Tab => Some(Message::ToggleLogListFold),
         KeyCode::Esc => Some(Message::Clear),
         KeyCode::Char('@') => Some(Message::SelectCurrentWorkingCopy),
-        KeyCode::Char('L') => Some(Message::SetRevset),
         KeyCode::Char('I') => Some(Message::ToggleIgnoreImmutable),
         KeyCode::Char('?') => Some(Message::ShowHelp),
         _ => model.handle_command_key(key.code),
@@ -423,7 +437,7 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         Message::Clear => model.clear(),
         Message::Quit => model.quit(),
         Message::Refresh => model.refresh()?,
-        Message::SetRevset => model.set_revset(),
+        Message::SetRevset { mode } => model.set_revset(mode),
         Message::SubmitTextInput => return model.submit_text_input(),
         Message::ShowHelp => model.show_help(),
         Message::ToggleIgnoreImmutable => model.toggle_ignore_immutable(),

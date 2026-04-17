@@ -2,8 +2,8 @@ use crate::update::{
     AbandonMode, AbsorbMode, BookmarkMoveMode, DuplicateDestination, DuplicateDestinationType,
     GitFetchMode, GitPushMode, InterdiffMode, Message, MetaeditAction, NewMode, NextPrevDirection,
     NextPrevMode, ParallelizeSource, RebaseDestination, RebaseDestinationType, RebaseSourceType,
-    RestoreMode, RevertDestination, RevertDestinationType, RevertRevision, SignAction,
-    SimplifyParentsMode, SquashMode, ViewMode,
+    RestoreMode, RevertDestination, RevertDestinationType, RevertRevision, SetRevsetMode,
+    SignAction, SimplifyParentsMode, SquashMode, ViewMode,
 };
 use crossterm::event::KeyCode;
 use indexmap::IndexMap;
@@ -41,7 +41,7 @@ impl CommandTreeNodeChildren {
         let mut help = self.help.clone();
 
         for (_, entries) in help.iter_mut() {
-            entries.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+            entries.sort_by_key(|a| a.0.to_lowercase());
         }
 
         help
@@ -153,7 +153,6 @@ impl CommandTree {
         let general_help = [
             ("Spc/Bksp", "Refresh log tree"),
             ("Esc", "Clear app state"),
-            ("L", "Set log revset"),
             ("I", "Toggle --ignore-immutable"),
             ("?", "Show help"),
             ("q", "Quit"),
@@ -716,6 +715,100 @@ impl CommandTree {
                 vec![KeyCode::Char('m'), KeyCode::Char('r')],
                 CommandTreeNode::new_action(Message::Metaedit {
                     action: MetaeditAction::ForceRewrite,
+                }),
+            ),
+            (
+                "Commands",
+                "Log revset",
+                vec![KeyCode::Char('L')],
+                CommandTreeNode::new_children(),
+            ),
+            (
+                "Log revset",
+                "Default",
+                vec![KeyCode::Char('L'), KeyCode::Char('d')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Default,
+                }),
+            ),
+            (
+                "Log revset",
+                "Jj default",
+                vec![KeyCode::Char('L'), KeyCode::Char('D')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::JjDefault,
+                }),
+            ),
+            (
+                "Log revset",
+                "Custom",
+                vec![KeyCode::Char('L'), KeyCode::Char('L')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Custom,
+                }),
+            ),
+            (
+                "Log revset",
+                "All commits",
+                vec![KeyCode::Char('L'), KeyCode::Char('a')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::All,
+                }),
+            ),
+            (
+                "Log revset",
+                "Mutable",
+                vec![KeyCode::Char('L'), KeyCode::Char('m')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Mutable,
+                }),
+            ),
+            (
+                "Log revset",
+                "Current stack",
+                vec![KeyCode::Char('L'), KeyCode::Char('s')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Stack,
+                }),
+            ),
+            (
+                "Log revset",
+                "Conflicts",
+                vec![KeyCode::Char('L'), KeyCode::Char('c')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Conflicts,
+                }),
+            ),
+            (
+                "Log revset",
+                "@ ancestry",
+                vec![KeyCode::Char('L'), KeyCode::Char('w')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::WorkingCopyAncestry,
+                }),
+            ),
+            (
+                "Log revset",
+                "Mine",
+                vec![KeyCode::Char('L'), KeyCode::Char('i')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Mine,
+                }),
+            ),
+            (
+                "Log revset",
+                "Bookmarks and tags",
+                vec![KeyCode::Char('L'), KeyCode::Char('b')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Bookmarks,
+                }),
+            ),
+            (
+                "Log revset",
+                "Recent",
+                vec![KeyCode::Char('L'), KeyCode::Char('r')],
+                CommandTreeNode::new_action(Message::SetRevset {
+                    mode: SetRevsetMode::Recent,
                 }),
             ),
             (

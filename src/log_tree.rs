@@ -161,6 +161,9 @@ impl CommitOrText {
     fn load_all(global_args: &GlobalArgs, revset: &str) -> Result<Vec<Self>> {
         let output = JjCommand::jj_log(revset, global_args.clone()).run()?;
         let mut lines = output.trim().lines().peekable();
+        if lines.peek().is_none() {
+            bail!("Revset '{revset}' is empty");
+        }
 
         let mut commits_or_texts = Vec::new();
         while let Some(line1) = lines.next() {

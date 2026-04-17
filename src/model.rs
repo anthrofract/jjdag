@@ -8,8 +8,8 @@ use crate::{
         GitFetchMode, GitPushMode, InterdiffMode, Message, MetaeditAction, NewMode,
         NextPrevDirection, NextPrevMode, ParallelizeSource, RebaseDestination,
         RebaseDestinationType, RebaseSourceType, RestoreMode, RevertDestination,
-        RevertDestinationType, RevertRevision, SignAction, SimplifyParentsMode, SquashMode,
-        ViewMode,
+        RevertDestinationType, RevertRevision, SetRevsetMode, SignAction, SimplifyParentsMode,
+        SquashMode, ViewMode,
     },
 };
 use ansi_to_tui::IntoText;
@@ -23,7 +23,8 @@ use ratatui::{
 };
 use ratatui_textarea::{CursorMove, TextArea};
 
-pub const DEFAULT_REVSET: &str = "root() | remote_bookmarks() | ancestors(immutable_heads().., 24)";
+pub const DEFAULT_REVSET: &str =
+    "present(@) | ancestors(immutable_heads().., 32) | remote_bookmarks() | root()";
 
 const LOG_LIST_SCROLL_PADDING: usize = 5;
 
@@ -837,9 +838,54 @@ impl Model {
         Ok(())
     }
 
-    pub fn set_revset(&mut self) {
-        let initial_text = self.revset.clone();
-        self.start_text_input("Revset", &initial_text, TextInputAction::SetRevset);
+    pub fn set_revset(&mut self, mode: SetRevsetMode) {
+        match mode {
+            SetRevsetMode::Custom => {
+                let initial_text = self.revset.clone();
+                self.start_text_input("Revset", &initial_text, TextInputAction::SetRevset);
+            }
+            SetRevsetMode::Default => {
+                let _ = self.apply_set_revset_from_input(DEFAULT_REVSET.to_string());
+            }
+            SetRevsetMode::JjDefault => {
+                match JjCommand::jj_config_get_revsets_log(&self.global_args.repository) {
+                    Ok(revset) => {
+                        let _ = self.apply_set_revset_from_input(revset);
+                    }
+                    Err(err) => {
+                        self.display_error_lines(&anyhow::anyhow!("{}", err));
+                    }
+                }
+            }
+            SetRevsetMode::All => {
+                let _ = self.apply_set_revset_from_input("all()".to_string());
+            }
+            SetRevsetMode::Mutable => {
+                let _ = self.apply_set_revset_from_input("mutable()".to_string());
+            }
+            SetRevsetMode::Stack => {
+                let _ = self.apply_set_revset_from_input("trunk() | (trunk()..@)::".to_string());
+            }
+            SetRevsetMode::Conflicts => {
+                let _ = self.apply_set_revset_from_input("conflicts()".to_string());
+            }
+            SetRevsetMode::WorkingCopyAncestry => {
+                let _ = self.apply_set_revset_from_input("::@".to_string());
+            }
+            SetRevsetMode::Mine => {
+                let _ = self.apply_set_revset_from_input("mine()".to_string());
+            }
+            SetRevsetMode::Bookmarks => {
+                let _ = self.apply_set_revset_from_input(
+                    "bookmarks() | remote_bookmarks() | tags()".to_string(),
+                );
+            }
+            SetRevsetMode::Recent => {
+                let _ = self.apply_set_revset_from_input(
+                    "committer_date(after:\"1 week ago\")".to_string(),
+                );
+            }
+        }
     }
 
     pub fn start_describe_input(&mut self) -> Result<()> {
