@@ -566,7 +566,7 @@ impl LogTreeNode for FileDiff {
             fold_symbol(self.unfolded),
             Span::raw(" "),
             Span::styled(
-                format!("{}  {}", self.status, self.description),
+                format!("{} {}", self.status, self.description),
                 Style::default().fg(Color::LightBlue),
             ),
         ]);
