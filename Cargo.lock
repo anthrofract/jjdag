@@ -584,22 +584,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
-name = "jjdag"
-version = "0.1.0"
-dependencies = [
- "ansi-to-tui",
- "anyhow",
- "clap",
- "crossterm",
- "fuzzy-matcher",
- "indexmap",
- "ratatui",
- "ratatui-textarea",
- "regex",
- "tempfile",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -692,6 +676,22 @@ checksum = "c0aeb26bf5e836cc1c341c8106051b573f1766dfa05aa87f0b98be5e51b02303"
 dependencies = [
  "nix",
  "winapi",
+]
+
+[[package]]
+name = "majjit"
+version = "0.1.0"
+dependencies = [
+ "ansi-to-tui",
+ "anyhow",
+ "clap",
+ "crossterm",
+ "fuzzy-matcher",
+ "indexmap",
+ "ratatui",
+ "ratatui-textarea",
+ "regex",
+ "tempfile",
 ]
 
 [[package]]

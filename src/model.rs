@@ -1138,7 +1138,7 @@ impl Model {
         let contents = cmd.run().map_err(|e| anyhow::anyhow!("{}", e))?;
 
         let temp_dir = tempfile::Builder::new()
-            .prefix(&format!("jjdag-{change_id}-{commit_id}-"))
+            .prefix(&format!("majjit-{change_id}-{commit_id}-"))
             .tempdir()?;
         let target_path = temp_dir.path().join(&file_path);
         if let Some(parent) = target_path.parent() {

@@ -235,7 +235,7 @@ pub struct Commit {
 
 /// Marker delimiting structured fields in our custom `jj log` template
 /// output. Emitted via `stringify(...)` so it never carries ANSI styling.
-pub const COMMIT_FIELD_MARKER: &str = "_JJDAG_";
+pub const COMMIT_FIELD_MARKER: &str = "_MAJJIT_";
 
 /// Number of structured fields between the leading and trailing markers.
 const COMMIT_NUM_FIELDS: usize = 10;

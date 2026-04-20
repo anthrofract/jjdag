@@ -17,7 +17,7 @@ use shell_out::JjCommand;
 use terminal::Term;
 
 #[derive(Parser, Debug)]
-#[command(version, about = "Jjdag: A TUI to manipulate the Jujutsu DAG")]
+#[command(version, about = "Majjit: A TUI to manipulate the Jujutsu DAG")]
 struct Args {
     /// Path to repository to operate on
     #[arg(short = 'R', long, default_value = ".")]

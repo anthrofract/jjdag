@@ -1,4 +1,4 @@
-# jjdag
+# Majjit
 
 A Rust TUI to manipulate the [Jujutsu](https://github.com/jj-vcs/jj) DAG.
 
@@ -72,21 +72,21 @@ Once you run the program you can press `?` to show the help info. Most of the co
 
 With cargo: 
 ```sh
-cargo install --git https://github.com/anthrofract/jjdag
+cargo install --git https://github.com/anthrofract/majjit
 ```
 
 Or run the nix flake:
 ```sh
-nix run github:anthrofract/jjdag
+nix run github:anthrofract/majjit
 ```
 
 Or install with the nix flake:
 
 ```nix
-inputs.jjdag.url = "github:anthrofract/jjdag";
+inputs.majjit.url = "github:anthrofract/majjit";
 
 ...
 
-nixpkgs.overlays = [ jjdag.overlays.default ];
-environment.systemPackages = [ pkgs.jjdag ];
+nixpkgs.overlays = [ majjit.overlays.default ];
+environment.systemPackages = [ pkgs.majjit ];
 ```

@@ -1,5 +1,5 @@
 {
-  description = "jjdag";
+  description = "Majjit: A TUI to manipulate the Jujutsu DAG";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,10 +17,10 @@
 
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      mkJjdag =
+      mkMajjit =
         pkgs:
         pkgs.rustPlatform.buildRustPackage {
-          pname = "jjdag";
+          pname = "majjit";
           version = "0.1.0";
           src = self;
           cargoLock.lockFile = ./Cargo.lock;
@@ -33,13 +33,13 @@
           pkgs = import nixpkgs { inherit system; };
         in
         {
-          default = mkJjdag pkgs;
-          jjdag = mkJjdag pkgs;
+          default = mkMajjit pkgs;
+          majjit = mkMajjit pkgs;
         }
       );
 
       overlays.default = final: prev: {
-        jjdag = mkJjdag final;
+        majjit = mkMajjit final;
       };
     };
 }
