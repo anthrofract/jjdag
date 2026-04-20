@@ -241,6 +241,42 @@ impl CommandTree {
             ),
             (
                 "Bookmark",
+                "List",
+                vec![KeyCode::Char('b'), KeyCode::Char('L')],
+                CommandTreeNode::new_children(),
+            ),
+            (
+                "Bookmark list",
+                "All",
+                vec![KeyCode::Char('b'), KeyCode::Char('L'), KeyCode::Char('a')],
+                CommandTreeNode::new_action(Message::BookmarkListAll),
+            ),
+            (
+                "Bookmark list",
+                "Local only",
+                vec![KeyCode::Char('b'), KeyCode::Char('L'), KeyCode::Char('L')],
+                CommandTreeNode::new_action(Message::BookmarkListLocal),
+            ),
+            (
+                "Bookmark list",
+                "Tracked remote",
+                vec![KeyCode::Char('b'), KeyCode::Char('L'), KeyCode::Char('t')],
+                CommandTreeNode::new_action(Message::BookmarkListTracked),
+            ),
+            (
+                "Bookmark list",
+                "Untracked remote",
+                vec![KeyCode::Char('b'), KeyCode::Char('L'), KeyCode::Char('u')],
+                CommandTreeNode::new_action(Message::BookmarkListUntracked),
+            ),
+            (
+                "Bookmark list",
+                "Conflicted",
+                vec![KeyCode::Char('b'), KeyCode::Char('L'), KeyCode::Char('c')],
+                CommandTreeNode::new_action(Message::BookmarkListConflicted),
+            ),
+            (
+                "Bookmark",
                 "Move",
                 vec![KeyCode::Char('b'), KeyCode::Char('m')],
                 CommandTreeNode::new_children(),

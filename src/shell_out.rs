@@ -617,6 +617,33 @@ impl JjCommand {
         Self::new_no_color(&args, global_args, ReturnOutput::Stdout)
     }
 
+    pub fn jj_bookmark_list_all_display(global_args: GlobalArgs) -> Self {
+        let args = [
+            "bookmark",
+            "list",
+            "--all-remotes",
+            "-T",
+            r#"if(remote, name ++ "@" ++ remote, name) ++ "\n""#,
+        ];
+        Self::new_no_color(&args, global_args, ReturnOutput::Stdout)
+    }
+
+    pub fn jj_bookmark_list_local_only_names(global_args: GlobalArgs) -> Self {
+        let args = ["bookmark", "list", "-T", r#"if(!remote, name ++ "\n")"#];
+        Self::new_no_color(&args, global_args, ReturnOutput::Stdout)
+    }
+
+    pub fn jj_bookmark_list_conflicted_names(global_args: GlobalArgs) -> Self {
+        let args = [
+            "bookmark",
+            "list",
+            "--conflicted",
+            "-T",
+            r#"if(!remote, name ++ "\n")"#,
+        ];
+        Self::new_no_color(&args, global_args, ReturnOutput::Stdout)
+    }
+
     pub fn jj_bookmark_move(
         from_change_id: &str,
         to_change_id: &str,

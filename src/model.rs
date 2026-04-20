@@ -120,8 +120,8 @@ pub enum TextInputAction {
         name: String,
     },
     WorkspaceForget,
-    WorkspaceList,
     WorkspaceRename,
+    NoOp,
 }
 
 #[derive(Debug, Clone)]
@@ -388,6 +388,39 @@ impl Model {
             .collect();
         names.sort();
         names.dedup();
+        Ok(names)
+    }
+
+    fn get_all_bookmark_display_names(&self) -> Result<Vec<String>> {
+        let cmd = JjCommand::jj_bookmark_list_all_display(self.global_args.clone());
+        let output = cmd.run().map_err(|e| anyhow::anyhow!("{}", e))?;
+        let names: Vec<String> = output
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        Ok(names)
+    }
+
+    fn get_local_only_bookmark_names(&self) -> Result<Vec<String>> {
+        let cmd = JjCommand::jj_bookmark_list_local_only_names(self.global_args.clone());
+        let output = cmd.run().map_err(|e| anyhow::anyhow!("{}", e))?;
+        let names: Vec<String> = output
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        Ok(names)
+    }
+
+    fn get_conflicted_bookmark_names(&self) -> Result<Vec<String>> {
+        let cmd = JjCommand::jj_bookmark_list_conflicted_names(self.global_args.clone());
+        let output = cmd.run().map_err(|e| anyhow::anyhow!("{}", e))?;
+        let names: Vec<String> = output
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         Ok(names)
     }
 
@@ -1031,8 +1064,8 @@ impl Model {
                 self.apply_workspace_add_from_input(value, Some(name))
             }
             TextInputAction::WorkspaceForget => self.apply_workspace_forget_from_input(value),
-            TextInputAction::WorkspaceList => Ok(()),
             TextInputAction::WorkspaceRename => self.apply_workspace_rename_from_input(value),
+            TextInputAction::NoOp => Ok(()),
         }
     }
 
@@ -1443,6 +1476,64 @@ impl Model {
             candidates,
             TextInputAction::BookmarkUntrack,
         );
+        Ok(())
+    }
+
+    pub fn jj_bookmark_list_all(&mut self) -> Result<()> {
+        let bookmarks = self.get_all_bookmark_display_names()?;
+        let candidates = bookmarks
+            .into_iter()
+            .map(FuzzyCandidate::from_display)
+            .collect();
+        self.start_fuzzy_input("Bookmarks (all)", candidates, TextInputAction::NoOp);
+        Ok(())
+    }
+
+    pub fn jj_bookmark_list_local(&mut self) -> Result<()> {
+        let bookmarks = self.get_local_only_bookmark_names()?;
+        let candidates = bookmarks
+            .into_iter()
+            .map(FuzzyCandidate::from_display)
+            .collect();
+        self.start_fuzzy_input("Bookmarks (local)", candidates, TextInputAction::NoOp);
+        Ok(())
+    }
+
+    pub fn jj_bookmark_list_tracked(&mut self) -> Result<()> {
+        let bookmarks = self.get_tracked_remote_bookmarks()?;
+        let candidates = bookmarks
+            .into_iter()
+            .map(FuzzyCandidate::from_display)
+            .collect();
+        self.start_fuzzy_input(
+            "Bookmarks (tracked remote)",
+            candidates,
+            TextInputAction::NoOp,
+        );
+        Ok(())
+    }
+
+    pub fn jj_bookmark_list_untracked(&mut self) -> Result<()> {
+        let bookmarks = self.get_untracked_remote_bookmarks()?;
+        let candidates = bookmarks
+            .into_iter()
+            .map(FuzzyCandidate::from_display)
+            .collect();
+        self.start_fuzzy_input(
+            "Bookmarks (untracked remote)",
+            candidates,
+            TextInputAction::NoOp,
+        );
+        Ok(())
+    }
+
+    pub fn jj_bookmark_list_conflicted(&mut self) -> Result<()> {
+        let bookmarks = self.get_conflicted_bookmark_names()?;
+        let candidates = bookmarks
+            .into_iter()
+            .map(FuzzyCandidate::from_display)
+            .collect();
+        self.start_fuzzy_input("Bookmarks (conflicted)", candidates, TextInputAction::NoOp);
         Ok(())
     }
 
@@ -2323,7 +2414,7 @@ impl Model {
             .into_iter()
             .map(FuzzyCandidate::from_display)
             .collect();
-        self.start_fuzzy_input("Workspaces", candidates, TextInputAction::WorkspaceList);
+        self.start_fuzzy_input("Workspaces", candidates, TextInputAction::NoOp);
         Ok(())
     }
 

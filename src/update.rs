@@ -21,6 +21,11 @@ pub enum Message {
     BookmarkForget {
         include_remotes: bool,
     },
+    BookmarkListAll,
+    BookmarkListLocal,
+    BookmarkListTracked,
+    BookmarkListUntracked,
+    BookmarkListConflicted,
     BookmarkMove {
         mode: BookmarkMoveMode,
     },
@@ -479,6 +484,11 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         Message::BookmarkCreate => model.jj_bookmark_create()?,
         Message::BookmarkDelete => model.jj_bookmark_delete()?,
         Message::BookmarkForget { include_remotes } => model.jj_bookmark_forget(include_remotes)?,
+        Message::BookmarkListAll => model.jj_bookmark_list_all()?,
+        Message::BookmarkListLocal => model.jj_bookmark_list_local()?,
+        Message::BookmarkListTracked => model.jj_bookmark_list_tracked()?,
+        Message::BookmarkListUntracked => model.jj_bookmark_list_untracked()?,
+        Message::BookmarkListConflicted => model.jj_bookmark_list_conflicted()?,
         Message::BookmarkMove { mode } => model.jj_bookmark_move(mode)?,
         Message::BookmarkRename => model.jj_bookmark_rename()?,
         Message::BookmarkSet => model.jj_bookmark_set()?,
