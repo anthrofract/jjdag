@@ -2162,31 +2162,32 @@ fn render_help_text(entries: HelpEntries) -> Text<'static> {
     lines.into()
 }
 
-pub fn display_unbound_error_lines(info_list: &mut Option<Text<'static>>, key_code: &KeyCode) {
+pub fn display_unbound_error_lines(
+    info_list: &mut Option<Text<'static>>,
+    key_code: &KeyCode,
+    clear_existing: bool,
+) {
     let error_line = Line::from(vec![
         Span::styled(" Unbound suffix: ", Style::default().fg(Color::Red)),
         Span::raw("'"),
         Span::styled(format!("{key_code}"), Style::default().fg(Color::Green)),
         Span::raw("'"),
     ]);
-    match info_list {
-        None => {
-            *info_list = Some(error_line.into());
+    if clear_existing || info_list.is_none() {
+        *info_list = Some(error_line.into());
+    } else if let Some(info_list) = info_list {
+        let add_blank_line = info_list.lines.first().unwrap().spans[0] != error_line.spans[0];
+        if let Some(last_line) = info_list.lines.last()
+            && !last_line.spans.is_empty()
+            && last_line.spans[0] == error_line.spans[0]
+        {
+            info_list.lines.pop();
+            info_list.lines.pop();
         }
-        Some(info_list) => {
-            let add_blank_line = info_list.lines.first().unwrap().spans[0] != error_line.spans[0];
-            if let Some(last_line) = info_list.lines.last()
-                && !last_line.spans.is_empty()
-                && last_line.spans[0] == error_line.spans[0]
-            {
-                info_list.lines.pop();
-                info_list.lines.pop();
-            }
 
-            if add_blank_line {
-                info_list.lines.push(Line::from(vec![]));
-            }
-            info_list.lines.push(error_line);
+        if add_blank_line {
+            info_list.lines.push(Line::from(vec![]));
         }
+        info_list.lines.push(error_line);
     }
 }

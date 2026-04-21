@@ -1086,7 +1086,11 @@ impl Model {
         let node = match self.command_tree.get_node(&self.command_keys) {
             None => {
                 self.command_keys.pop();
-                display_unbound_error_lines(&mut self.info_list, &key_code);
+                display_unbound_error_lines(
+                    &mut self.info_list,
+                    &key_code,
+                    self.command_keys.is_empty(),
+                );
                 return None;
             }
             Some(node) => node,
