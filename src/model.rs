@@ -1381,7 +1381,7 @@ impl Model {
                 let Some(to_change_id) = self.get_selected_change_id() else {
                     return self.invalid_selection();
                 };
-                (from_change_id, to_change_id, false)
+                (from_change_id.to_string(), to_change_id.to_string(), false)
             }
             BookmarkMoveMode::AllowBackwards => {
                 let Some(from_change_id) = self.get_saved_change_id() else {
@@ -1390,18 +1390,22 @@ impl Model {
                 let Some(to_change_id) = self.get_selected_change_id() else {
                     return self.invalid_selection();
                 };
-                (from_change_id, to_change_id, true)
+                (from_change_id.to_string(), to_change_id.to_string(), true)
             }
             BookmarkMoveMode::Tug => {
                 let Some(to_change_id) = self.get_selected_change_id() else {
                     return self.invalid_selection();
                 };
-                ("heads(::@- & bookmarks())", to_change_id, false)
+                (
+                    format!("heads(::{to_change_id} & bookmarks())"),
+                    to_change_id.to_string(),
+                    false,
+                )
             }
         };
         let cmd = JjCommand::jj_bookmark_move(
-            from_change_id,
-            to_change_id,
+            &from_change_id,
+            &to_change_id,
             allow_backwards,
             self.global_args.clone(),
         );
