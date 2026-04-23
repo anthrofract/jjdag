@@ -35,6 +35,7 @@ Once you run the program you can press `?` to show the help info. Most of the co
 - `jj bookmark create`
 - `jj bookmark delete`
 - `jj bookmark forget`
+- `jj bookmark list`
 - `jj bookmark move`
 - `jj bookmark rename`
 - `jj bookmark set`
@@ -46,10 +47,13 @@ Once you run the program you can press `?` to show the help info. Most of the co
 - `jj duplicate`
 - `jj edit`
 - `jj evolog`
+- `jj file list`
+- `jj file show`
 - `jj file track`
 - `jj file untrack`
 - `jj git fetch`
 - `jj git push`
+- `jj git remote list`
 - `jj interdiff`
 - `jj metaedit`
 - `jj new`
@@ -61,12 +65,20 @@ Once you run the program you can press `?` to show the help info. Most of the co
 - `jj resolve`
 - `jj restore`
 - `jj revert`
+- `jj show`
 - `jj sign`
 - `jj simplify-parents`
 - `jj squash`
 - `jj status`
 - `jj undo`
 - `jj unsign`
+- `jj workspace add`
+- `jj workspace forget`
+- `jj workspace list`
+- `jj workspace rename`
+- `jj workspace update-stale`
+
+Plus a custom command (`C`) to run arbitrary `jj` commands.
 
 ## Installation
 
