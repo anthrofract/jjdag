@@ -149,6 +149,8 @@ impl JjCommand {
             "--config",
             "ui.pager=:builtin",
             "--config",
+            "ui.diff-editor=:builtin",
+            "--config",
             "ui.streampager.interface=full-screen-clear-output",
             "--config",
             "template-aliases.\"format_short_change_id(id)\"=format_short_id(id)",
@@ -416,6 +418,37 @@ impl JjCommand {
             sync: true,
             color: true,
         })
+    }
+
+    pub fn jj_raw_interactive(args: &str, global_args: GlobalArgs, term: Term) -> Result<Self> {
+        let parsed = shell_words::split(args)?;
+        Ok(Self {
+            args: parsed,
+            global_args,
+            interactive_term: Some(term),
+            return_output: ReturnOutput::Combined,
+            sync: true,
+            color: true,
+        })
+    }
+
+    pub fn jj_split(
+        change_id: &str,
+        destination_type: Option<&str>,
+        destination: Option<&str>,
+        parallel: bool,
+        global_args: GlobalArgs,
+        term: Term,
+    ) -> Self {
+        let mut args = vec!["split", "--revision", change_id];
+        if parallel {
+            args.push("--parallel");
+        }
+        if let (Some(destination_type), Some(destination)) = (destination_type, destination) {
+            args.push(destination_type);
+            args.push(destination);
+        }
+        Self::new(&args, global_args, Some(term), ReturnOutput::Stderr)
     }
 
     pub fn jj_resolve(

@@ -3,7 +3,8 @@ use crate::update::{
     DuplicateDestinationType, GitFetchMode, GitPushMode, InterdiffMode, Message, MetaeditAction,
     NewMode, NextPrevDirection, NextPrevMode, ParallelizeSource, RebaseDestination,
     RebaseDestinationType, RebaseSourceType, RestoreMode, RevertDestination, RevertDestinationType,
-    RevertRevision, SetRevsetMode, SignAction, SimplifyParentsMode, SquashMode, ViewMode,
+    RevertRevision, SetRevsetMode, SignAction, SimplifyParentsMode, SplitDestination,
+    SplitDestinationType, SquashMode, ViewMode,
 };
 use crossterm::event::KeyCode;
 use indexmap::IndexMap;
@@ -1149,6 +1150,134 @@ impl CommandTree {
             ),
             (
                 "Commands",
+                "Split",
+                vec![KeyCode::Char('S')],
+                CommandTreeNode::new_children(),
+            ),
+            (
+                "Split",
+                "Selection",
+                vec![KeyCode::Char('S'), KeyCode::Char('s')],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::Default,
+                    destination: SplitDestination::Default,
+                    parallel: false,
+                }),
+            ),
+            (
+                "Split",
+                "Custom",
+                vec![KeyCode::Char('S'), KeyCode::Char('c')],
+                CommandTreeNode::new_action(Message::SplitCustom),
+            ),
+            (
+                "Split",
+                "Selection (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('S')],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::Default,
+                    destination: SplitDestination::Default,
+                    parallel: true,
+                }),
+            ),
+            (
+                "Split",
+                "Selection onto destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('o')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split onto",
+                "Select destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('o'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::Onto,
+                    destination: SplitDestination::Selection,
+                    parallel: false,
+                }),
+            ),
+            (
+                "Split",
+                "Selection after destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('a')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split after",
+                "Select destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('a'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::InsertAfter,
+                    destination: SplitDestination::Selection,
+                    parallel: false,
+                }),
+            ),
+            (
+                "Split",
+                "Selection before destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('b')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split before",
+                "Select destination",
+                vec![KeyCode::Char('S'), KeyCode::Char('b'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::InsertBefore,
+                    destination: SplitDestination::Selection,
+                    parallel: false,
+                }),
+            ),
+            (
+                "Split",
+                "Selection onto destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('O')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split onto",
+                "Select destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('O'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::Onto,
+                    destination: SplitDestination::Selection,
+                    parallel: true,
+                }),
+            ),
+            (
+                "Split",
+                "Selection after destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('A')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split after",
+                "Select destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('A'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::InsertAfter,
+                    destination: SplitDestination::Selection,
+                    parallel: true,
+                }),
+            ),
+            (
+                "Split",
+                "Selection before destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('B')],
+                CommandTreeNode::new_action_with_children(Message::SaveSelection),
+            ),
+            (
+                "Split before",
+                "Select destination (parallel)",
+                vec![KeyCode::Char('S'), KeyCode::Char('B'), KeyCode::Enter],
+                CommandTreeNode::new_action(Message::Split {
+                    destination_type: SplitDestinationType::InsertBefore,
+                    destination: SplitDestination::Selection,
+                    parallel: true,
+                }),
+            ),
+            (
+                "Commands",
                 "Status",
                 vec![KeyCode::Char('t')],
                 CommandTreeNode::new_action(Message::Status),
@@ -1156,13 +1285,13 @@ impl CommandTree {
             (
                 "Commands",
                 "Sign",
-                vec![KeyCode::Char('S')],
+                vec![KeyCode::Char('G')],
                 CommandTreeNode::new_children(),
             ),
             (
                 "Sign",
                 "Selection",
-                vec![KeyCode::Char('S'), KeyCode::Char('s')],
+                vec![KeyCode::Char('G'), KeyCode::Char('s')],
                 CommandTreeNode::new_action(Message::Sign {
                     action: SignAction::Sign,
                     range: false,
@@ -1171,13 +1300,13 @@ impl CommandTree {
             (
                 "Sign",
                 "From selection to destination",
-                vec![KeyCode::Char('S'), KeyCode::Char('S')],
+                vec![KeyCode::Char('G'), KeyCode::Char('G')],
                 CommandTreeNode::new_action_with_children(Message::SaveSelection),
             ),
             (
                 "Sign range",
                 "Select destination",
-                vec![KeyCode::Char('S'), KeyCode::Char('S'), KeyCode::Enter],
+                vec![KeyCode::Char('G'), KeyCode::Char('G'), KeyCode::Enter],
                 CommandTreeNode::new_action(Message::Sign {
                     action: SignAction::Sign,
                     range: true,
@@ -1186,7 +1315,7 @@ impl CommandTree {
             (
                 "Sign",
                 "Unsign selection",
-                vec![KeyCode::Char('S'), KeyCode::Char('u')],
+                vec![KeyCode::Char('G'), KeyCode::Char('u')],
                 CommandTreeNode::new_action(Message::Sign {
                     action: SignAction::Unsign,
                     range: false,
@@ -1195,13 +1324,13 @@ impl CommandTree {
             (
                 "Sign",
                 "Unsign from selection to destination",
-                vec![KeyCode::Char('S'), KeyCode::Char('U')],
+                vec![KeyCode::Char('G'), KeyCode::Char('U')],
                 CommandTreeNode::new_action_with_children(Message::SaveSelection),
             ),
             (
                 "Unsign range",
                 "Select destination",
-                vec![KeyCode::Char('S'), KeyCode::Char('U'), KeyCode::Enter],
+                vec![KeyCode::Char('G'), KeyCode::Char('U'), KeyCode::Enter],
                 CommandTreeNode::new_action(Message::Sign {
                     action: SignAction::Unsign,
                     range: true,
@@ -2112,7 +2241,7 @@ impl CommandTree {
 
 fn render_help_text(entries: HelpEntries) -> Text<'static> {
     const COL_WIDTH: usize = 26;
-    const MAX_ENTRIES_PER_COL: usize = 16;
+    const MAX_ENTRIES_PER_COL: usize = 17;
 
     // Get lines for each column, splitting if over MAX_ENTRIES_PER_COL
     let columns: Vec<Vec<Line>> = entries

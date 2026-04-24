@@ -9,7 +9,7 @@ use crate::{
         MetaeditAction, NewMode, NextPrevDirection, NextPrevMode, ParallelizeSource,
         RebaseDestination, RebaseDestinationType, RebaseSourceType, RestoreMode, RevertDestination,
         RevertDestinationType, RevertRevision, SetRevsetMode, SignAction, SimplifyParentsMode,
-        SquashMode, ViewMode,
+        SplitDestination, SplitDestinationType, SquashMode, ViewMode,
     },
 };
 use ansi_to_tui::IntoText;
@@ -120,6 +120,7 @@ pub enum TextInputAction {
         destination_type: RebaseDestinationType,
     },
     SelectInRevset,
+    SplitCustom,
     WorkspaceAddPathOnly,
     WorkspaceAddNamePrompt,
     WorkspaceAddPathPrompt {
@@ -704,7 +705,7 @@ impl Model {
         });
     }
 
-    pub fn submit_text_input(&mut self) -> Result<Option<Message>> {
+    pub fn submit_text_input(&mut self, term: Term) -> Result<Option<Message>> {
         self.state = State::Running;
         let Some(session) = self.text_input.take() else {
             return Ok(None);
@@ -738,7 +739,7 @@ impl Model {
         };
 
         if let Some(value) = maybe_value {
-            self.apply_text_input(session.action, value)?;
+            self.apply_text_input(session.action, value, term)?;
         }
         Ok(None)
     }
@@ -1003,7 +1004,12 @@ impl Model {
         self.queue_jj_command(cmd)
     }
 
-    fn apply_text_input(&mut self, action: TextInputAction, value: String) -> Result<()> {
+    fn apply_text_input(
+        &mut self,
+        action: TextInputAction,
+        value: String,
+        term: Term,
+    ) -> Result<()> {
         match action {
             TextInputAction::SetRevset => self.apply_set_revset_from_input(value),
             TextInputAction::Describe => self.apply_describe_from_input(value),
@@ -1063,6 +1069,7 @@ impl Model {
                 }
                 Ok(())
             }
+            TextInputAction::SplitCustom => self.apply_split_custom_from_input(value, term),
             TextInputAction::WorkspaceAddPathOnly => {
                 self.apply_workspace_add_from_input(value, None)
             }
@@ -2322,6 +2329,61 @@ impl Model {
         };
 
         self.queue_jj_command(cmd)
+    }
+
+    fn apply_split_custom_from_input(&mut self, args: String, term: Term) -> Result<()> {
+        let cmd = JjCommand::jj_raw_interactive(
+            &format!("split {args}"),
+            self.global_args.clone(),
+            term,
+        )?;
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_split(
+        &mut self,
+        destination_type: SplitDestinationType,
+        destination: SplitDestination,
+        parallel: bool,
+        term: Term,
+    ) -> Result<()> {
+        let (change_id, destination_type) = match destination_type {
+            SplitDestinationType::Default => (self.get_selected_change_id(), None),
+            SplitDestinationType::InsertAfter => {
+                (self.get_saved_change_id(), Some("--insert-after"))
+            }
+            SplitDestinationType::InsertBefore => {
+                (self.get_saved_change_id(), Some("--insert-before"))
+            }
+            SplitDestinationType::Onto => (self.get_saved_change_id(), Some("--onto")),
+        };
+        let Some(change_id) = change_id else {
+            return self.invalid_selection();
+        };
+        let destination = match destination {
+            SplitDestination::Default => None,
+            SplitDestination::Selection => {
+                let Some(destination) = self.get_selected_change_id() else {
+                    return self.invalid_selection();
+                };
+                Some(destination)
+            }
+        };
+
+        let cmd = JjCommand::jj_split(
+            change_id,
+            destination_type,
+            destination,
+            parallel,
+            self.global_args.clone(),
+            term,
+        );
+        self.queue_jj_command(cmd)
+    }
+
+    pub fn jj_split_custom(&mut self) -> Result<()> {
+        self.start_text_input("Split args", "", TextInputAction::SplitCustom);
+        Ok(())
     }
 
     pub fn jj_status(&mut self, term: Term) -> Result<()> {

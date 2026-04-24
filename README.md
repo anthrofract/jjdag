@@ -68,6 +68,7 @@ Once you run the program you can press `?` to show the help info. Most of the co
 - `jj show`
 - `jj sign`
 - `jj simplify-parents`
+- `jj split`
 - `jj squash`
 - `jj status`
 - `jj undo`

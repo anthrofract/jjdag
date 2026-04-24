@@ -138,6 +138,12 @@ pub enum Message {
     Squash {
         mode: SquashMode,
     },
+    Split {
+        destination_type: SplitDestinationType,
+        destination: SplitDestination,
+        parallel: bool,
+    },
+    SplitCustom,
     Status,
     SubmitTextInput,
     ToggleIgnoreImmutable,
@@ -346,6 +352,20 @@ pub enum SquashMode {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
+pub enum SplitDestinationType {
+    Default,
+    InsertAfter,
+    InsertBefore,
+    Onto,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum SplitDestination {
+    Default,
+    Selection,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ViewMode {
     Default,
     FromSelection,
@@ -462,7 +482,7 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         Message::Quit => model.quit(),
         Message::Refresh => model.refresh()?,
         Message::SetRevset { mode } => model.set_revset(mode),
-        Message::SubmitTextInput => return model.submit_text_input(),
+        Message::SubmitTextInput => return model.submit_text_input(term),
         Message::ShowHelp => model.show_help(),
         Message::ToggleIgnoreImmutable => model.toggle_ignore_immutable(),
 
@@ -559,6 +579,12 @@ fn handle_msg(term: Term, model: &mut Model, msg: Message) -> Result<Option<Mess
         Message::Sign { action, range } => model.jj_sign(action, range)?,
         Message::SimplifyParents { mode } => model.jj_simplify_parents(mode)?,
         Message::Squash { mode } => model.jj_squash(mode, term)?,
+        Message::Split {
+            destination_type,
+            destination,
+            parallel,
+        } => model.jj_split(destination_type, destination, parallel, term)?,
+        Message::SplitCustom => model.jj_split_custom()?,
         Message::Status => model.jj_status(term)?,
         Message::Undo => model.jj_undo()?,
         Message::View { mode } => model.jj_view(mode, term)?,
